@@ -1,9 +1,14 @@
 import crypto from 'crypto';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { findContactByEmail } from '../../lib/salesforce';
 import { getSession } from '../../lib/session';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const mailTransport = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+});
 
 function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -33,9 +38,9 @@ export default async function handler(req, res) {
     session.otpExpiry = Date.now() + 10 * 60 * 1000;
     await session.save();
 
-    const { error: sendError } = await resend.emails.send({
-      // TODO: verify unframe.ai in Resend (Domains → Add) and switch to 'Unframe Ambassador Portal <ambassadors@unframe.ai>'
-      from: 'Unframe Ambassador Portal <onboarding@resend.dev>',
+    try {
+      await mailTransport.sendMail({
+        from: process.env.SMTP_FROM || `Unframe Ambassador Portal <${process.env.SMTP_USER}>`,
       to: email.trim(),
       subject: 'Your login code',
       html: `
@@ -48,14 +53,11 @@ export default async function handler(req, res) {
     <p style="font-size: 13px; color: #6E6E75; margin: 0;">If you didn't request this, you can ignore this email.</p>
   </div>
       `,
-    });
-
-    if (sendError) {
-      console.error('Resend send failed:', sendError);
-      const detail = sendError.message || sendError.name || 'email delivery failed';
-      return res.status(502).json({
-        error: `Could not send the login code: ${detail}. The sender domain may still need verification in Resend.`,
       });
+    } catch (err) {
+      console.error('SMTP send failed:', err);
+      const detail = err?.message || 'email delivery failed';
+      return res.status(502).json({ error: `Could not send the login code: ${detail}` });
     }
 
     return res.status(200).json({ ok: true });
