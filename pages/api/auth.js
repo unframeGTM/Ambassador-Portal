@@ -33,7 +33,7 @@ export default async function handler(req, res) {
     session.otpExpiry = Date.now() + 10 * 60 * 1000;
     await session.save();
 
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       // TODO: verify unframe.ai in Resend (Domains → Add) and switch to 'Unframe Ambassador Portal <ambassadors@unframe.ai>'
       from: 'Unframe Ambassador Portal <onboarding@resend.dev>',
       to: email.trim(),
@@ -49,6 +49,14 @@ export default async function handler(req, res) {
   </div>
       `,
     });
+
+    if (sendError) {
+      console.error('Resend send failed:', sendError);
+      const detail = sendError.message || sendError.name || 'email delivery failed';
+      return res.status(502).json({
+        error: `Could not send the login code: ${detail}. The sender domain may still need verification in Resend.`,
+      });
+    }
 
     return res.status(200).json({ ok: true });
   }
