@@ -52,7 +52,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <img src="/logo-dark.svg" alt="Unframe" className="login-logo" />
+        <img src="/logo-on-light.svg" alt="Unframe" className="login-logo" />
         <h1>Ambassador Portal</h1>
 
         {step === 'email' && (

@@ -84,7 +84,7 @@ export default function Register() {
   return (
     <>
       <nav className="nav">
-        <img src="/logo-white.svg" alt="Unframe" className="nav-logo" />
+        <img src="/logo-on-dark.svg" alt="Unframe" className="nav-logo" />
         <span className="nav-user">
           <Link href="/dashboard" className="btn btn-secondary btn-sm">Back to dashboard</Link>
         </span>
@@ -121,11 +121,11 @@ export default function Register() {
                       {accountSuggestions.map(a => (
                         <div key={a.Id} className="autocomplete-item" onClick={() => selectAccount(a)}>
                           <span>{a.Name}</span>
-                          {a.Website && <div style={{ fontSize: 12, color: '#6b778c' }}>{a.Website}</div>}
+                          {a.Website && <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{a.Website}</div>}
                         </div>
                       ))}
                       {accountQuery.length >= 2 && (
-                        <div className="autocomplete-item" style={{ borderTop: '1px solid #dfe1e6', color: '#0052cc' }} onClick={chooseNewCompany}>
+                        <div className="autocomplete-item" style={{ borderTop: '1px solid var(--line)', color: 'var(--brand-blue)' }} onClick={chooseNewCompany}>
                           + Register "{accountQuery}" as a new company
                         </div>
                       )}
@@ -133,11 +133,11 @@ export default function Register() {
                   )}
                   {selectedAccount && (
                     <>
-                      <div style={{ marginTop: 6, fontSize: 12, color: '#006644' }}>
+                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--ok-fg)' }}>
                         Selected: {selectedAccount.Name}
                       </div>
                       {selectedAccount.Registration_Active__c && (
-                        <div style={{ marginTop: 8, padding: '10px 14px', background: '#fff7e6', border: '1px solid #ffe0a3', borderRadius: 6, fontSize: 13, color: '#7a4f00' }}>
+                        <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--warn-bg)', border: '1px solid #F2D9A6', borderRadius: 6, fontSize: 13, color: 'var(--warn-fg)' }}>
                           This account is currently held. However, you can still submit your application to be considered if it becomes available.
                         </div>
                       )}

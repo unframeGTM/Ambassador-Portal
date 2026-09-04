@@ -55,10 +55,10 @@ function RegistrationCard({ reg }) {
           <h2>{reg['Account__r']?.Name || '—'}</h2>
           <div className="card-meta">
             {reg.Tier__c} &middot; Submitted {fmt(reg.CreatedDate)}
-            {isLocking && <span style={{ marginLeft: 8, color: '#006644', fontWeight: 600 }}>· Account held</span>}
+            {isLocking && <span style={{ marginLeft: 8, color: 'var(--ok-fg)', fontWeight: 600 }}>· Account held</span>}
           </div>
           {reg['Lead__r']?.Name && (
-            <div style={{ fontSize: 13, color: '#344563', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>
               Referred lead: <strong>{reg['Lead__r'].Name}</strong>
             </div>
           )}
@@ -77,7 +77,7 @@ function RegistrationCard({ reg }) {
       </div>
 
       {reg.Notes__c && (
-        <div style={{ marginTop: 14, fontSize: 13, color: '#6b778c' }}>
+        <div style={{ marginTop: 14, fontSize: 13, color: 'var(--ink-3)' }}>
           <strong>Notes:</strong> {reg.Notes__c}
         </div>
       )}
@@ -125,7 +125,7 @@ export default function Dashboard() {
   return (
     <>
       <nav className="nav">
-        <img src="/logo-white.svg" alt="Unframe" className="nav-logo" />
+        <img src="/logo-on-dark.svg" alt="Unframe" className="nav-logo" />
         <span className="nav-user">
           <Link href="/register" className="btn btn-primary btn-sm">+ New Registration</Link>
           <button className="btn btn-secondary btn-sm" onClick={logout}>Sign out</button>
@@ -134,7 +134,7 @@ export default function Dashboard() {
 
       <div className="container">
         {error && <div className="error-msg" style={{ marginTop: 24 }}>{error}</div>}
-        {loading && <p style={{ color: '#6b778c', fontSize: 14, marginTop: 32 }}>Loading…</p>}
+        {loading && <p style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 32 }}>Loading…</p>}
 
         {!loading && (
           <>
@@ -145,23 +145,23 @@ export default function Dashboard() {
             {regs.length > 0 && (
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
-                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #dfe1e6', fontSize: 13, background: '#fff', cursor: 'pointer' }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
+                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
                     <option value="All">All Statuses</option>
                     {Object.keys(STATUS_CLASS).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account Held</label>
-                  <select value={filterHeld} onChange={e => setFilterHeld(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #dfe1e6', fontSize: 13, background: '#fff', cursor: 'pointer' }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account Held</label>
+                  <select value={filterHeld} onChange={e => setFilterHeld(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
                     <option value="All">All Accounts</option>
                     <option value="held">Account Held</option>
                     <option value="not-held">Not Held</option>
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approval Date</label>
-                  <select value={sortDate} onChange={e => setSortDate(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #dfe1e6', fontSize: 13, background: '#fff', cursor: 'pointer' }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approval Date</label>
+                  <select value={sortDate} onChange={e => setSortDate(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
                     <option value="desc">Newest First</option>
                     <option value="asc">Oldest First</option>
                   </select>

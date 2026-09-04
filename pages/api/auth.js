@@ -34,16 +34,19 @@ export default async function handler(req, res) {
     await session.save();
 
     await resend.emails.send({
+      // TODO: verify unframe.ai in Resend (Domains → Add) and switch to 'Unframe Ambassador Portal <ambassadors@unframe.ai>'
       from: 'Unframe Ambassador Portal <onboarding@resend.dev>',
       to: email.trim(),
       subject: 'Your login code',
       html: `
-        <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px;">
-          <h2 style="font-size: 20px; margin-bottom: 8px;">Your login code</h2>
-          <p style="color: #6b778c; margin-bottom: 24px;">Enter this code in the Ambassador Portal. It expires in 10 minutes.</p>
-          <div style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #172b4d; margin-bottom: 24px;">${otp}</div>
-          <p style="font-size: 13px; color: #6b778c;">If you didn't request this, you can ignore this email.</p>
-        </div>
+  <div style="font-family: 'Poppins', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #141414;">
+    <div style="height: 4px; background: #7800FF; border-radius: 2px; margin-bottom: 24px;"></div>
+    <div style="font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 20px;"><span style="color: #7800FF;">U</span>nframe</div>
+    <h2 style="font-size: 18px; font-weight: 600; margin: 0 0 8px;">Your login code</h2>
+    <p style="color: #3D3D42; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">Enter this code in the Ambassador Portal. It expires in 10 minutes.</p>
+    <div style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #141414; margin-bottom: 24px;">${otp}</div>
+    <p style="font-size: 13px; color: #6E6E75; margin: 0;">If you didn't request this, you can ignore this email.</p>
+  </div>
       `,
     });
 
