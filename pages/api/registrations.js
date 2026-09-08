@@ -8,13 +8,16 @@ export default withAuth(async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { accountId, accountName, accountWebsite, tier, notes, isDuplicate, accountDisplayName } = req.body;
+    const { accountId, accountName, accountWebsite, tier, notes, isDuplicate, accountDisplayName, referredLeadName, referredLeadEmail } = req.body;
 
     if (!accountId && !accountName) {
       return res.status(400).json({ error: 'Account is required.' });
     }
     if (!tier) {
       return res.status(400).json({ error: 'Tier is required.' });
+    }
+    if (referredLeadName && !referredLeadEmail) {
+      return res.status(400).json({ error: 'A referred lead email is required when a referred lead is entered.' });
     }
 
     const status = isDuplicate ? 'On Hold - Dupe Acct Registration' : 'Pending Approval';
@@ -27,6 +30,8 @@ export default withAuth(async function handler(req, res) {
       tier,
       notes,
       status,
+      referredLeadName,
+      referredLeadEmail,
     });
 
     if (isDuplicate && resolvedAccountId) {

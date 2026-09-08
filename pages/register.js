@@ -9,6 +9,8 @@ export default function Register() {
   const [isNewCompany, setIsNewCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyWebsite, setNewCompanyWebsite] = useState('');
+  const [referredLeadName, setReferredLeadName] = useState('');
+  const [referredLeadEmail, setReferredLeadEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -56,14 +58,21 @@ export default function Register() {
       setError('A website is required for new companies (e.g. acme.com).');
       return;
     }
+    if (referredLeadName.trim() && !referredLeadEmail.trim()) {
+      setError('Please add the referred lead’s email.');
+      return;
+    }
     setLoading(true);
     setError('');
 
     const tier = 'Unframe Ambassador';
     const isDuplicate = !isNewCompany && selectedAccount?.Registration_Active__c;
+    const lead = referredLeadName.trim()
+      ? { referredLeadName: referredLeadName.trim(), referredLeadEmail: referredLeadEmail.trim() }
+      : {};
     const body = isNewCompany
-      ? { accountName: newCompanyName, accountWebsite: newCompanyWebsite, tier, notes }
-      : { accountId: selectedAccount.Id, tier, notes, isDuplicate: !!isDuplicate, accountDisplayName: selectedAccount.Name };
+      ? { accountName: newCompanyName, accountWebsite: newCompanyWebsite, tier, notes, ...lead }
+      : { accountId: selectedAccount.Id, tier, notes, isDuplicate: !!isDuplicate, accountDisplayName: selectedAccount.Name, ...lead };
 
     const res = await fetch('/api/registrations', {
       method: 'POST',
@@ -158,6 +167,32 @@ export default function Register() {
                 </div>
               )}
             </div>
+
+            <div className="form-group">
+              <label htmlFor="referredLead">Referred Lead <span style={{ color: 'var(--ink-3)', fontWeight: 400 }}>(optional)</span></label>
+              <input
+                id="referredLead"
+                type="text"
+                value={referredLeadName}
+                onChange={e => setReferredLeadName(e.target.value)}
+                placeholder="Name of a lead to refer with this account"
+                autoComplete="off"
+              />
+            </div>
+
+            {referredLeadName.trim() && (
+              <div className="form-group">
+                <label htmlFor="referredLeadEmail">Referred Lead Email</label>
+                <input
+                  id="referredLeadEmail"
+                  type="email"
+                  value={referredLeadEmail}
+                  onChange={e => setReferredLeadEmail(e.target.value)}
+                  placeholder="lead@company.com"
+                  autoComplete="off"
+                />
+              </div>
+            )}
 
             <div className="form-group">
               <label htmlFor="notes">Notes</label>

@@ -31,7 +31,7 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / 86400000);
 }
 
-function DateItem({ label, value }) {
+function DateItem({ label, value, note }) {
   const days = daysUntil(value);
   let cls = '';
   if (days !== null && value) {
@@ -41,6 +41,7 @@ function DateItem({ label, value }) {
   return (
     <div className="date-item">
       <div className="date-label">{label}</div>
+      {note && <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--brand-purple)', marginBottom: 2 }}>{note}</div>}
       <div className={`date-value ${cls}`}>
         {fmt(value)}
         {days !== null && value && days >= 0 && days < 30 && (
@@ -62,6 +63,7 @@ function RegistrationCard({ reg }) {
           <div className="card-meta">
             {reg.Tier__c} &middot; Submitted {fmt(reg.CreatedDate)}
             {isLocking && <span style={{ marginLeft: 8, color: 'var(--ok-fg)', fontWeight: 600 }}>· Account held</span>}
+            {reg.Intro_Window_Extended__c && <span style={{ marginLeft: 8, color: 'var(--brand-purple)', fontWeight: 600 }}>· Intro window extended +30d</span>}
           </div>
           {reg['Lead__r']?.Name && (
             <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>
@@ -76,7 +78,7 @@ function RegistrationCard({ reg }) {
         <DateItem label="Approval Date"           value={reg.Approval_Date__c} />
         <DateItem label="Introduction Date"       value={reg.Introduction_Date__c} />
         <DateItem label="Intro Meeting Date"      value={reg.Intro_Meeting_Date__c} />
-        <DateItem label="Intro Window Expiry"     value={reg.Intro_Window_Expiry__c} />
+        <DateItem label="Intro Window Expiry"     value={reg.Intro_Window_Expiry__c} note={reg.Intro_Window_Extended__c ? 'Extended +30d' : null} />
         <DateItem label="Close Window (6mo)"      value={reg.Close_Window_Expiry__c} />
         <DateItem label="Registration Lock (6mo)" value={reg.Registration_Expiry__c} />
         <DateItem label="Upsell Window (12mo)"    value={reg.Upsell_Eligibility_Expiry__c} />
