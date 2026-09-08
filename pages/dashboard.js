@@ -17,12 +17,18 @@ const LOCKING_STATUSES = new Set(['Approved', 'Intro Made', 'Active']);
 
 function fmt(dateStr) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Salesforce Date fields are date-only; render in UTC so they don't shift a day in local time.
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
-  return Math.ceil((new Date(dateStr) - new Date()) / 86400000);
+  // Compare calendar dates only (no time-of-day), so the count matches the displayed date.
+  const d = new Date(dateStr);
+  const now = new Date();
+  const target = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target - today) / 86400000);
 }
 
 function DateItem({ label, value }) {
