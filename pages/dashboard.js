@@ -31,6 +31,11 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / 86400000);
 }
 
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function DateItem({ label, value, note }) {
   const days = daysUntil(value);
   let cls = '';
@@ -55,6 +60,8 @@ function DateItem({ label, value, note }) {
 function RegistrationCard({ reg }) {
   const statusClass = STATUS_CLASS[reg.Status__c] || 'pending';
   const isLocking = LOCKING_STATUSES.has(reg.Status__c);
+  const isRegistered = isLocking && reg.Intro_Meeting_Date__c && reg.Intro_Meeting_Date__c <= todayISO();
+  const ownership = !isLocking ? null : (isRegistered ? 'Account Registered' : 'Account Held');
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -62,12 +69,12 @@ function RegistrationCard({ reg }) {
           <h2>{reg['Account__r']?.Name || '—'}</h2>
           <div className="card-meta">
             {reg.Tier__c} &middot; Submitted {fmt(reg.CreatedDate)}
-            {isLocking && <span style={{ marginLeft: 8, color: 'var(--ok-fg)', fontWeight: 600 }}>· Account held</span>}
+            {ownership && <span style={{ marginLeft: 8, color: isRegistered ? 'var(--brand-blue)' : 'var(--ok-fg)', fontWeight: 600 }}>· {ownership}</span>}
             {reg.Intro_Window_Extended__c && <span style={{ marginLeft: 8, color: 'var(--brand-purple)', fontWeight: 600 }}>· Intro window extended +30d</span>}
           </div>
-          {reg['Lead__r']?.Name && (
+          {reg.Referred_Lead_Title__c && (
             <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>
-              Referred lead: <strong>{reg['Lead__r'].Name}</strong>
+              Referred lead title: <strong>{reg.Referred_Lead_Title__c}</strong>
             </div>
           )}
         </div>
@@ -160,11 +167,12 @@ export default function Dashboard() {
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account Held</label>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ownership</label>
                   <select value={filterHeld} onChange={e => setFilterHeld(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
-                    <option value="All">All Accounts</option>
-                    <option value="held">Account Held</option>
-                    <option value="not-held">Not Held</option>
+                    <option value="All">All Ownership</option>
+                    <option value="Account Held">Account Held</option>
+                    <option value="Account Registered">Account Registered</option>
+                    <option value="Not Held">Not Held</option>
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -182,8 +190,10 @@ export default function Dashboard() {
                 .filter(r => filterStatus === 'All' || r.Status__c === filterStatus)
                 .filter(r => {
                   if (filterHeld === 'All') return true;
-                  const held = LOCKING_STATUSES.has(r.Status__c);
-                  return filterHeld === 'held' ? held : !held;
+                  const own = !LOCKING_STATUSES.has(r.Status__c)
+                    ? 'Not Held'
+                    : (r.Intro_Meeting_Date__c && r.Intro_Meeting_Date__c <= todayISO() ? 'Account Registered' : 'Account Held');
+                  return own === filterHeld;
                 })
                 .sort((a, b) => {
                   const da = a.Approval_Date__c ? new Date(a.Approval_Date__c) : new Date(0);

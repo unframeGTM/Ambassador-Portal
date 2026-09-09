@@ -2,6 +2,19 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Not Held | Account Held | Account Registered (intro meeting date today or in the past)
+function ownershipStatus(acct) {
+  if (!acct?.Registration_Active__c) return 'Not Held';
+  const imd = acct.Active_Intro_Meeting_Date;
+  if (imd && imd <= todayISO()) return 'Account Registered';
+  return 'Account Held';
+}
+
 export default function Register() {
   const [accountQuery, setAccountQuery] = useState('');
   const [accountSuggestions, setAccountSuggestions] = useState([]);
@@ -9,8 +22,7 @@ export default function Register() {
   const [isNewCompany, setIsNewCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyWebsite, setNewCompanyWebsite] = useState('');
-  const [referredLeadName, setReferredLeadName] = useState('');
-  const [referredLeadEmail, setReferredLeadEmail] = useState('');
+  const [referredLeadTitle, setReferredLeadTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -58,8 +70,8 @@ export default function Register() {
       setError('A website is required for new companies (e.g. acme.com).');
       return;
     }
-    if (referredLeadName.trim() && !referredLeadEmail.trim()) {
-      setError('Please add the referred lead’s email.');
+    if (!referredLeadTitle.trim()) {
+      setError('Please add a referred lead title.');
       return;
     }
     setLoading(true);
@@ -67,9 +79,7 @@ export default function Register() {
 
     const tier = 'Unframe Ambassador';
     const isDuplicate = !isNewCompany && selectedAccount?.Registration_Active__c;
-    const lead = referredLeadName.trim()
-      ? { referredLeadName: referredLeadName.trim(), referredLeadEmail: referredLeadEmail.trim() }
-      : {};
+    const lead = { referredLeadTitle: referredLeadTitle.trim() };
     const body = isNewCompany
       ? { accountName: newCompanyName, accountWebsite: newCompanyWebsite, tier, notes, ...lead }
       : { accountId: selectedAccount.Id, tier, notes, isDuplicate: !!isDuplicate, accountDisplayName: selectedAccount.Name, ...lead };
@@ -147,7 +157,7 @@ export default function Register() {
                       </div>
                       {selectedAccount.Registration_Active__c && (
                         <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--warn-bg)', border: '1px solid #F2D9A6', borderRadius: 6, fontSize: 13, color: 'var(--warn-fg)' }}>
-                          This account is currently held. However, you can still submit your application to be considered if it becomes available.
+                          <strong>{ownershipStatus(selectedAccount)}.</strong> This account is currently held. However, you can still submit your application. Please provide context for this registration in the notes below in order to be considered.
                         </div>
                       )}
                     </>
@@ -169,30 +179,17 @@ export default function Register() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="referredLead">Referred Lead <span style={{ color: 'var(--ink-3)', fontWeight: 400 }}>(optional)</span></label>
+              <label htmlFor="referredLeadTitle">Referred Lead Title *</label>
               <input
-                id="referredLead"
+                id="referredLeadTitle"
                 type="text"
-                value={referredLeadName}
-                onChange={e => setReferredLeadName(e.target.value)}
-                placeholder="Name of a lead to refer with this account"
+                value={referredLeadTitle}
+                onChange={e => setReferredLeadTitle(e.target.value)}
+                placeholder="Title of the lead you’re referring (e.g. VP of Engineering)"
                 autoComplete="off"
+                required
               />
             </div>
-
-            {referredLeadName.trim() && (
-              <div className="form-group">
-                <label htmlFor="referredLeadEmail">Referred Lead Email</label>
-                <input
-                  id="referredLeadEmail"
-                  type="email"
-                  value={referredLeadEmail}
-                  onChange={e => setReferredLeadEmail(e.target.value)}
-                  placeholder="lead@company.com"
-                  autoComplete="off"
-                />
-              </div>
-            )}
 
             <div className="form-group">
               <label htmlFor="notes">Notes</label>
