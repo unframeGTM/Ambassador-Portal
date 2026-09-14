@@ -223,29 +223,77 @@ function AmbassadorView({ regs, opps }) {
   );
 }
 
-// Admin view: every registration, grouped by ambassador, with a searchable
-// ambassador filter that narrows to a single ambassador's My Registrations view.
-function AdminView({ regs }) {
+function stageClass(stage) {
+  if (stage === 'Closed Won') return 'converted';
+  if (stage === 'Closed Lost' || stage === 'Disqualified') return 'rejected';
+  return 'intro-made';
+}
+
+// Ambassador's opportunities (via OpportunityContactRole) in the admin view.
+function AdminOpportunities({ opps }) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>
+        Opportunities ({opps.length})
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Opportunity</th>
+              <th>Stage</th>
+              <th>Next Steps Date</th>
+              <th>Close Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {opps.map(o => (
+              <tr key={o.rowId}>
+                <td>{o.AccountName || '—'}</td>
+                <td>{o.Name || '—'}</td>
+                <td><span className={`badge badge-${stageClass(o.StageName)}`}>{o.StageName}</span></td>
+                <td>{fmt(o.Next_Steps_Date__c)}</td>
+                <td>{fmt(o.CloseDate)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Admin view: every registration and every ambassador opportunity, grouped by
+// ambassador, with a searchable ambassador filter that narrows to one person.
+function AdminView({ regs, opps }) {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterHeld, setFilterHeld] = useState('All');
   const [sortDate, setSortDate] = useState('desc');
   const [ambSearch, setAmbSearch] = useState('');
   const [selectedAmb, setSelectedAmb] = useState('All');
 
-  // Distinct ambassadors from the registration set, sorted by name.
-  const ambassadors = [];
-  const seen = new Map();
-  for (const r of regs) {
-    const id = r.Ambassador__c || 'unassigned';
-    if (!seen.has(id)) {
-      seen.set(id, true);
-      ambassadors.push({
-        id,
-        name: r['Ambassador__r']?.Name || 'Unassigned',
-        email: r['Ambassador__r']?.Email || '',
-      });
-    }
+  // Opportunities grouped by ambassador id.
+  const oppsByAmb = new Map();
+  for (const o of opps) {
+    const id = o.ambassadorId || 'unassigned';
+    if (!oppsByAmb.has(id)) oppsByAmb.set(id, []);
+    oppsByAmb.get(id).push(o);
   }
+
+  // Distinct ambassadors from registrations and opportunities, sorted by name.
+  const ambassadors = [];
+  const ambIndex = new Map();
+  function noteAmbassador(id, name, email) {
+    if (ambIndex.has(id)) {
+      if (email && !ambassadors[ambIndex.get(id)].email) ambassadors[ambIndex.get(id)].email = email;
+      return;
+    }
+    ambIndex.set(id, ambassadors.length);
+    ambassadors.push({ id, name: name || 'Unassigned', email: email || '' });
+  }
+  for (const r of regs) noteAmbassador(r.Ambassador__c || 'unassigned', r['Ambassador__r']?.Name, r['Ambassador__r']?.Email);
+  for (const o of opps) noteAmbassador(o.ambassadorId || 'unassigned', o.ambassadorName, '');
   ambassadors.sort((a, b) => a.name.localeCompare(b.name));
 
   const searchLc = ambSearch.trim().toLowerCase();
@@ -255,24 +303,29 @@ function AdminView({ regs }) {
 
   const filteredRegs = applyFilters(regs, filterStatus, filterHeld, sortDate);
 
-  // Group filtered regs by ambassador, respecting the ambassador selection.
+  // Build one group per ambassador (respecting the selection), carrying both
+  // their filtered registrations and their opportunities.
   const groups = [];
   const groupIndex = new Map();
+  function ensureGroup(id, name, email) {
+    if (groupIndex.has(id)) return groups[groupIndex.get(id)];
+    groupIndex.set(id, groups.length);
+    const g = { id, name: name || 'Unassigned', email: email || '', regs: [], opps: [] };
+    groups.push(g);
+    return g;
+  }
   for (const r of filteredRegs) {
     const id = r.Ambassador__c || 'unassigned';
     if (selectedAmb !== 'All' && id !== selectedAmb) continue;
-    if (!groupIndex.has(id)) {
-      groupIndex.set(id, groups.length);
-      groups.push({
-        id,
-        name: r['Ambassador__r']?.Name || 'Unassigned',
-        email: r['Ambassador__r']?.Email || '',
-        regs: [],
-      });
-    }
-    groups[groupIndex.get(id)].regs.push(r);
+    ensureGroup(id, r['Ambassador__r']?.Name, r['Ambassador__r']?.Email).regs.push(r);
   }
-  groups.sort((a, b) => a.name.localeCompare(b.name));
+  for (const [id, list] of oppsByAmb) {
+    if (selectedAmb !== 'All' && id !== selectedAmb) continue;
+    ensureGroup(id, list[0]?.ambassadorName).opps = list;
+  }
+  // Drop groups the registration filters emptied that also have no opportunities.
+  const visibleGroups = groups.filter(g => g.regs.length > 0 || g.opps.length > 0);
+  visibleGroups.sort((a, b) => a.name.localeCompare(b.name));
 
   const totalAmbassadors = ambassadors.length;
 
@@ -281,7 +334,7 @@ function AdminView({ regs }) {
       <div className="page-header">
         <h1>All Registrations</h1>
         <p style={{ color: 'var(--ink-3)', fontSize: 14, margin: '4px 0 0' }}>
-          Admin view · {regs.length} registration{regs.length === 1 ? '' : 's'} across {totalAmbassadors} ambassador{totalAmbassadors === 1 ? '' : 's'}
+          Admin view · {regs.length} registration{regs.length === 1 ? '' : 's'} · {opps.length} opportunit{opps.length === 1 ? 'y' : 'ies'} · {totalAmbassadors} ambassador{totalAmbassadors === 1 ? '' : 's'}
         </p>
       </div>
 
@@ -312,22 +365,23 @@ function AdminView({ regs }) {
         />
       </div>
 
-      {groups.length === 0 ? (
+      {visibleGroups.length === 0 ? (
         <div className="empty">
           <h2>No results</h2>
-          <p>No registrations match the current filters.</p>
+          <p>No registrations or opportunities match the current filters.</p>
         </div>
       ) : (
-        groups.map(g => (
+        visibleGroups.map(g => (
           <div key={g.id} style={{ marginBottom: 32 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '10px 0 12px', borderBottom: '2px solid var(--line)', marginBottom: 16 }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{g.name}</h2>
               {g.email && <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>{g.email}</span>}
               <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--ink-3)' }}>
-                {g.regs.length} registration{g.regs.length === 1 ? '' : 's'}
+                {g.regs.length} registration{g.regs.length === 1 ? '' : 's'} · {g.opps.length} opportunit{g.opps.length === 1 ? 'y' : 'ies'}
               </span>
             </div>
             {g.regs.map(reg => <RegistrationCard key={reg.Id} reg={reg} />)}
+            {g.opps.length > 0 && <AdminOpportunities opps={g.opps} />}
           </div>
         ))
       )}
@@ -340,6 +394,7 @@ export default function Dashboard() {
   const [regs, setRegs] = useState([]);
   const [opps, setOpps] = useState([]);
   const [adminRegs, setAdminRegs] = useState([]);
+  const [adminOpps, setAdminOpps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -353,9 +408,13 @@ export default function Dashboard() {
         setMe(meData);
 
         if (meData.isAdmin) {
-          const res = await fetch('/api/admin/registrations');
-          if (res.status === 401) { router.push('/'); return; }
-          setAdminRegs(res.ok ? await res.json() : []);
+          const [regsRes, oppsRes] = await Promise.all([
+            fetch('/api/admin/registrations'),
+            fetch('/api/admin/opportunities'),
+          ]);
+          if (regsRes.status === 401 || oppsRes.status === 401) { router.push('/'); return; }
+          setAdminRegs(regsRes.ok ? await regsRes.json() : []);
+          setAdminOpps(oppsRes.ok ? await oppsRes.json() : []);
         } else {
           const [regsData, oppsData] = await Promise.all([
             fetch('/api/registrations').then(r => { if (r.status === 401) { router.push('/'); return null; } return r.json(); }),
@@ -393,7 +452,7 @@ export default function Dashboard() {
 
         {!loading && me && (
           me.isAdmin
-            ? <AdminView regs={adminRegs} />
+            ? <AdminView regs={adminRegs} opps={adminOpps} />
             : <AmbassadorView regs={regs} opps={opps} />
         )}
       </div>
