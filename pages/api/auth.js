@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { findContactByEmail } from '../../lib/salesforce';
 import { getSession } from '../../lib/session';
+import { isAdmin } from '../../lib/admins';
 
 const mailTransport = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -23,17 +24,20 @@ export default async function handler(req, res) {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email required.' });
 
-    const contact = await findContactByEmail(email.trim().toLowerCase());
-    if (!contact) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const contact = await findContactByEmail(normalizedEmail);
+    // Admins can sign in even without an ambassador Contact record; everyone
+    // else must match an existing ambassador.
+    if (!contact && !isAdmin(normalizedEmail)) {
       return res.status(404).json({ error: 'No ambassador found with that email.' });
     }
 
     const otp = generateOtp();
     const session = await getSession(req, res);
-    session.pendingEmail = email.trim().toLowerCase();
-    session.pendingContactId = contact.Id;
-    session.pendingContactName = contact.Name;
-    session.pendingTier = contact.Ambassador_Tier__c || '';
+    session.pendingEmail = normalizedEmail;
+    session.pendingContactId = contact ? contact.Id : null;
+    session.pendingContactName = contact ? contact.Name : 'Admin';
+    session.pendingTier = contact ? (contact.Ambassador_Tier__c || '') : '';
     session.otpHash = hashOtp(otp);
     session.otpExpiry = Date.now() + 10 * 60 * 1000;
     await session.save();

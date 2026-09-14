@@ -36,6 +36,22 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function ownershipOf(reg) {
+  if (!LOCKING_STATUSES.has(reg.Status__c)) return 'Not Held';
+  return reg.Intro_Meeting_Date__c && reg.Intro_Meeting_Date__c <= todayISO() ? 'Account Registered' : 'Account Held';
+}
+
+function applyFilters(regs, filterStatus, filterHeld, sortDate) {
+  return regs
+    .filter(r => filterStatus === 'All' || r.Status__c === filterStatus)
+    .filter(r => filterHeld === 'All' || ownershipOf(r) === filterHeld)
+    .sort((a, b) => {
+      const da = a.Approval_Date__c ? new Date(a.Approval_Date__c) : new Date(0);
+      const db = b.Approval_Date__c ? new Date(b.Approval_Date__c) : new Date(0);
+      return sortDate === 'asc' ? da - db : db - da;
+    });
+}
+
 function DateItem({ label, value, note }) {
   const days = daysUntil(value);
   let cls = '';
@@ -111,25 +127,249 @@ function OpportunityRow({ opp }) {
   );
 }
 
-export default function Dashboard() {
-  const [regs, setRegs] = useState([]);
-  const [opps, setOpps] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+const selectStyle = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' };
+const labelStyle = { fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' };
+
+function FilterBar({ filterStatus, setFilterStatus, filterHeld, setFilterHeld, sortDate, setSortDate }) {
+  return (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={labelStyle}>Status</label>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selectStyle}>
+          <option value="All">All Statuses</option>
+          {Object.keys(STATUS_CLASS).map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={labelStyle}>Ownership</label>
+        <select value={filterHeld} onChange={e => setFilterHeld(e.target.value)} style={selectStyle}>
+          <option value="All">All Ownership</option>
+          <option value="Account Held">Account Held</option>
+          <option value="Account Registered">Account Registered</option>
+          <option value="Not Held">Not Held</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={labelStyle}>Approval Date</label>
+        <select value={sortDate} onChange={e => setSortDate(e.target.value)} style={selectStyle}>
+          <option value="desc">Newest First</option>
+          <option value="asc">Oldest First</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+// Ambassador's own view: their registration cards + referred opportunities.
+function AmbassadorView({ regs, opps }) {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterHeld, setFilterHeld] = useState('All');
   const [sortDate, setSortDate] = useState('desc');
+
+  const filtered = applyFilters(regs, filterStatus, filterHeld, sortDate);
+
+  return (
+    <>
+      <div className="page-header">
+        <h1>My Registrations</h1>
+      </div>
+
+      {regs.length > 0 && (
+        <FilterBar
+          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+          filterHeld={filterHeld} setFilterHeld={setFilterHeld}
+          sortDate={sortDate} setSortDate={setSortDate}
+        />
+      )}
+
+      {regs.length === 0 ? (
+        <div className="empty">
+          <h2>No registrations yet</h2>
+          <p>Submit an account registration and it will appear here once approved.</p>
+          <Link href="/register" className="btn btn-primary">Submit your first registration</Link>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="empty">
+          <h2>No results</h2>
+          <p>No registrations match the current filters.</p>
+        </div>
+      ) : (
+        filtered.map(reg => <RegistrationCard key={reg.Id} reg={reg} />)
+      )}
+
+      {opps.length > 0 && (
+        <>
+          <div className="page-header" style={{ marginTop: 16 }}>
+            <h1>My Referred Opportunities</h1>
+          </div>
+          <div className="table-wrap" style={{ marginBottom: 40 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Opportunity</th>
+                  <th>Stage</th>
+                  <th>Close Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {opps.map(o => <OpportunityRow key={o.Id} opp={o} />)}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// Admin view: every registration, grouped by ambassador, with a searchable
+// ambassador filter that narrows to a single ambassador's My Registrations view.
+function AdminView({ regs }) {
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterHeld, setFilterHeld] = useState('All');
+  const [sortDate, setSortDate] = useState('desc');
+  const [ambSearch, setAmbSearch] = useState('');
+  const [selectedAmb, setSelectedAmb] = useState('All');
+
+  // Distinct ambassadors from the registration set, sorted by name.
+  const ambassadors = [];
+  const seen = new Map();
+  for (const r of regs) {
+    const id = r.Ambassador__c || 'unassigned';
+    if (!seen.has(id)) {
+      seen.set(id, true);
+      ambassadors.push({
+        id,
+        name: r['Ambassador__r']?.Name || 'Unassigned',
+        email: r['Ambassador__r']?.Email || '',
+      });
+    }
+  }
+  ambassadors.sort((a, b) => a.name.localeCompare(b.name));
+
+  const searchLc = ambSearch.trim().toLowerCase();
+  const searchable = searchLc
+    ? ambassadors.filter(a => a.name.toLowerCase().includes(searchLc) || a.email.toLowerCase().includes(searchLc))
+    : ambassadors;
+
+  const filteredRegs = applyFilters(regs, filterStatus, filterHeld, sortDate);
+
+  // Group filtered regs by ambassador, respecting the ambassador selection.
+  const groups = [];
+  const groupIndex = new Map();
+  for (const r of filteredRegs) {
+    const id = r.Ambassador__c || 'unassigned';
+    if (selectedAmb !== 'All' && id !== selectedAmb) continue;
+    if (!groupIndex.has(id)) {
+      groupIndex.set(id, groups.length);
+      groups.push({
+        id,
+        name: r['Ambassador__r']?.Name || 'Unassigned',
+        email: r['Ambassador__r']?.Email || '',
+        regs: [],
+      });
+    }
+    groups[groupIndex.get(id)].regs.push(r);
+  }
+  groups.sort((a, b) => a.name.localeCompare(b.name));
+
+  const totalAmbassadors = ambassadors.length;
+
+  return (
+    <>
+      <div className="page-header">
+        <h1>All Registrations</h1>
+        <p style={{ color: 'var(--ink-3)', fontSize: 14, margin: '4px 0 0' }}>
+          Admin view · {regs.length} registration{regs.length === 1 ? '' : 's'} across {totalAmbassadors} ambassador{totalAmbassadors === 1 ? '' : 's'}
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 260 }}>
+          <label style={labelStyle}>Ambassador</label>
+          <input
+            type="text"
+            value={ambSearch}
+            onChange={e => setAmbSearch(e.target.value)}
+            placeholder="Search ambassadors…"
+            autoComplete="off"
+            style={{ ...selectStyle, cursor: 'text', marginBottom: 6 }}
+          />
+          <select value={selectedAmb} onChange={e => setSelectedAmb(e.target.value)} style={selectStyle}>
+            <option value="All">All ambassadors ({totalAmbassadors})</option>
+            {searchable.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.name}{a.email ? ` — ${a.email}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <FilterBar
+          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+          filterHeld={filterHeld} setFilterHeld={setFilterHeld}
+          sortDate={sortDate} setSortDate={setSortDate}
+        />
+      </div>
+
+      {groups.length === 0 ? (
+        <div className="empty">
+          <h2>No results</h2>
+          <p>No registrations match the current filters.</p>
+        </div>
+      ) : (
+        groups.map(g => (
+          <div key={g.id} style={{ marginBottom: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '10px 0 12px', borderBottom: '2px solid var(--line)', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{g.name}</h2>
+              {g.email && <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>{g.email}</span>}
+              <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--ink-3)' }}>
+                {g.regs.length} registration{g.regs.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            {g.regs.map(reg => <RegistrationCard key={reg.Id} reg={reg} />)}
+          </div>
+        ))
+      )}
+    </>
+  );
+}
+
+export default function Dashboard() {
+  const [me, setMe] = useState(null);
+  const [regs, setRegs] = useState([]);
+  const [opps, setOpps] = useState([]);
+  const [adminRegs, setAdminRegs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const router = useRouter();
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/registrations').then(r => { if (r.status === 401) { router.push('/'); return null; } return r.json(); }),
-      fetch('/api/opportunities').then(r => r.ok ? r.json() : []),
-    ]).then(([regsData, oppsData]) => {
-      if (regsData) setRegs(regsData);
-      if (oppsData) setOpps(oppsData);
-      setLoading(false);
-    }).catch(() => { setError('Failed to load data.'); setLoading(false); });
+    (async () => {
+      try {
+        const meRes = await fetch('/api/me');
+        if (meRes.status === 401) { router.push('/'); return; }
+        const meData = await meRes.json();
+        setMe(meData);
+
+        if (meData.isAdmin) {
+          const res = await fetch('/api/admin/registrations');
+          if (res.status === 401) { router.push('/'); return; }
+          setAdminRegs(res.ok ? await res.json() : []);
+        } else {
+          const [regsData, oppsData] = await Promise.all([
+            fetch('/api/registrations').then(r => { if (r.status === 401) { router.push('/'); return null; } return r.json(); }),
+            fetch('/api/opportunities').then(r => r.ok ? r.json() : []),
+          ]);
+          if (regsData) setRegs(regsData);
+          if (oppsData) setOpps(oppsData);
+        }
+        setLoading(false);
+      } catch {
+        setError('Failed to load data.');
+        setLoading(false);
+      }
+    })();
   }, []);
 
   async function logout() {
@@ -142,7 +382,7 @@ export default function Dashboard() {
       <nav className="nav">
         <img src="/logo-on-dark.svg" alt="Unframe" className="nav-logo" />
         <span className="nav-user">
-          <Link href="/register" className="btn btn-primary btn-sm">+ New Registration</Link>
+          {me && !me.isAdmin && <Link href="/register" className="btn btn-primary btn-sm">+ New Registration</Link>}
           <button className="btn btn-secondary btn-sm" onClick={logout}>Sign out</button>
         </span>
       </nav>
@@ -151,97 +391,10 @@ export default function Dashboard() {
         {error && <div className="error-msg" style={{ marginTop: 24 }}>{error}</div>}
         {loading && <p style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 32 }}>Loading…</p>}
 
-        {!loading && (
-          <>
-            <div className="page-header">
-              <h1>My Registrations</h1>
-            </div>
-
-            {regs.length > 0 && (
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
-                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
-                    <option value="All">All Statuses</option>
-                    {Object.keys(STATUS_CLASS).map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ownership</label>
-                  <select value={filterHeld} onChange={e => setFilterHeld(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
-                    <option value="All">All Ownership</option>
-                    <option value="Account Held">Account Held</option>
-                    <option value="Account Registered">Account Registered</option>
-                    <option value="Not Held">Not Held</option>
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approval Date</label>
-                  <select value={sortDate} onChange={e => setSortDate(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
-                    <option value="desc">Newest First</option>
-                    <option value="asc">Oldest First</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {(() => {
-              const filtered = regs
-                .filter(r => filterStatus === 'All' || r.Status__c === filterStatus)
-                .filter(r => {
-                  if (filterHeld === 'All') return true;
-                  const own = !LOCKING_STATUSES.has(r.Status__c)
-                    ? 'Not Held'
-                    : (r.Intro_Meeting_Date__c && r.Intro_Meeting_Date__c <= todayISO() ? 'Account Registered' : 'Account Held');
-                  return own === filterHeld;
-                })
-                .sort((a, b) => {
-                  const da = a.Approval_Date__c ? new Date(a.Approval_Date__c) : new Date(0);
-                  const db = b.Approval_Date__c ? new Date(b.Approval_Date__c) : new Date(0);
-                  return sortDate === 'asc' ? da - db : db - da;
-                });
-
-              if (regs.length === 0) return (
-                <div className="empty">
-                  <h2>No registrations yet</h2>
-                  <p>Submit an account registration and it will appear here once approved.</p>
-                  <Link href="/register" className="btn btn-primary">Submit your first registration</Link>
-                </div>
-              );
-
-              if (filtered.length === 0) return (
-                <div className="empty">
-                  <h2>No results</h2>
-                  <p>No registrations match the current filters.</p>
-                </div>
-              );
-
-              return filtered.map(reg => <RegistrationCard key={reg.Id} reg={reg} />);
-            })()}
-
-            {opps.length > 0 && (
-              <>
-                <div className="page-header" style={{ marginTop: 16 }}>
-                  <h1>My Referred Opportunities</h1>
-                </div>
-                <div className="table-wrap" style={{ marginBottom: 40 }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Account</th>
-                        <th>Opportunity</th>
-                        <th>Stage</th>
-                        <th>Close Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {opps.map(o => <OpportunityRow key={o.Id} opp={o} />)}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </>
+        {!loading && me && (
+          me.isAdmin
+            ? <AdminView regs={adminRegs} />
+            : <AmbassadorView regs={regs} opps={opps} />
         )}
       </div>
     </>
