@@ -78,6 +78,8 @@ function RegistrationCard({ reg }) {
   const isLocking = LOCKING_STATUSES.has(reg.Status__c);
   const isRegistered = isLocking && reg.Intro_Meeting_Date__c && reg.Intro_Meeting_Date__c <= todayISO();
   const ownership = !isLocking ? null : (isRegistered ? 'Account Registered' : 'Account Held');
+  // Senior Advisors to the CEO Office don't have an intro window, so hide its expiry.
+  const isSeniorAdvisor = reg['Ambassador__r']?.Ambassador_Tier__c === 'Senior Advisor to the CEO Office';
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -99,9 +101,10 @@ function RegistrationCard({ reg }) {
 
       <div className="dates-grid">
         <DateItem label="Approval Date"           value={reg.Approval_Date__c} />
-        <DateItem label="Introduction Date"       value={reg.Introduction_Date__c} />
         <DateItem label="Intro Meeting Date"      value={reg.Intro_Meeting_Date__c} />
-        <DateItem label="Intro Window Expiry"     value={reg.Intro_Window_Expiry__c} note={reg.Intro_Window_Extended__c ? 'Extended +30d' : null} />
+        {!isSeniorAdvisor && (
+          <DateItem label="Intro Window Expiry"   value={reg.Intro_Window_Expiry__c} note={reg.Intro_Window_Extended__c ? 'Extended +30d' : null} />
+        )}
         <DateItem label="Close Window (6mo)"      value={reg.Close_Window_Expiry__c} />
         <DateItem label="Registration Lock (6mo)" value={reg.Registration_Expiry__c} />
         <DateItem label="Upsell Window (12mo)"    value={reg.Upsell_Eligibility_Expiry__c} />
