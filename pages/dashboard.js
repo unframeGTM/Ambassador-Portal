@@ -36,6 +36,26 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Month + year only (e.g. "Nov 2026") for the partner-facing target close date.
+function fmtMonthYear(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+function fmtAmount(n) {
+  if (n === null || n === undefined || n === '') return '—';
+  return `$${Math.round(Number(n)).toLocaleString('en-US')}`;
+}
+
+// Partner-friendly pipeline: show a stage's position so ambassadors don't need
+// to know our internal stage names (e.g. "Discovery (2/5)"). Terminal stages
+// (Closed Won/Lost, Disqualified, Churned) show their label without a step.
+const STAGE_SEQUENCE = ['Stage 0', 'Discovery', 'Use Case', 'POC', 'Negotiate'];
+function stageLabel(stage) {
+  const i = STAGE_SEQUENCE.indexOf(stage);
+  return i >= 0 ? `${stage} (${i + 1}/${STAGE_SEQUENCE.length})` : (stage || '—');
+}
+
 function ownershipOf(reg) {
   if (!LOCKING_STATUSES.has(reg.Status__c)) return 'Not Held';
   return reg.Intro_Meeting_Date__c && reg.Intro_Meeting_Date__c <= todayISO() ? 'Account Registered' : 'Account Held';
@@ -124,8 +144,9 @@ function OpportunityRow({ opp }) {
     <tr>
       <td>{opp['Account']?.Name || '—'}</td>
       <td>{opp.Name}</td>
-      <td><span className={`badge badge-${opp.StageName === 'Closed Won' ? 'converted' : opp.StageName === 'Closed Lost' ? 'rejected' : 'intro-made'}`}>{opp.StageName}</span></td>
-      <td>{fmt(opp.CloseDate)}</td>
+      <td><span className={`badge badge-${stageClass(opp.StageName)}`}>{stageLabel(opp.StageName)}</span></td>
+      <td>{fmtAmount(opp.Amount)}</td>
+      <td>{fmtMonthYear(opp.CloseDate)}</td>
     </tr>
   );
 }
@@ -212,7 +233,8 @@ function AmbassadorView({ regs, opps }) {
                   <th>Account</th>
                   <th>Opportunity</th>
                   <th>Stage</th>
-                  <th>Close Date</th>
+                  <th>Estimated Amount</th>
+                  <th>Target Close Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,7 +250,7 @@ function AmbassadorView({ regs, opps }) {
 
 function stageClass(stage) {
   if (stage === 'Closed Won') return 'converted';
-  if (stage === 'Closed Lost' || stage === 'Disqualified') return 'rejected';
+  if (stage === 'Closed Lost' || stage === 'Disqualified' || stage === 'Churned') return 'rejected';
   return 'intro-made';
 }
 
@@ -246,8 +268,9 @@ function AdminOpportunities({ opps }) {
               <th>Account</th>
               <th>Opportunity</th>
               <th>Stage</th>
+              <th>Estimated Amount</th>
               <th>Next Steps Date</th>
-              <th>Close Date</th>
+              <th>Target Close Date</th>
             </tr>
           </thead>
           <tbody>
@@ -255,9 +278,10 @@ function AdminOpportunities({ opps }) {
               <tr key={o.rowId}>
                 <td>{o.AccountName || '—'}</td>
                 <td>{o.Name || '—'}</td>
-                <td><span className={`badge badge-${stageClass(o.StageName)}`}>{o.StageName}</span></td>
+                <td><span className={`badge badge-${stageClass(o.StageName)}`}>{stageLabel(o.StageName)}</span></td>
+                <td>{fmtAmount(o.Amount)}</td>
                 <td>{fmt(o.Next_Steps_Date__c)}</td>
-                <td>{fmt(o.CloseDate)}</td>
+                <td>{fmtMonthYear(o.CloseDate)}</td>
               </tr>
             ))}
           </tbody>
